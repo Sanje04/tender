@@ -17,6 +17,6 @@ EXPOSE 8000
 # client IPs instead of the nginx container's -- safe only because
 # docker-compose.yml exposes this port to the internal network alone (no
 # host port mapping), so nginx is the only thing that can ever call it.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
 
 CMD ["python", "-c", "import sys; sys.exit(1)"]
