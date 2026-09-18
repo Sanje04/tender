@@ -60,10 +60,12 @@ pipeline {
     stage('Deploy') {
       steps {
         script { env.DEPLOYED = 'true' }
+        // Stamp this build's tag into the manifests (the checkout's copy only)
+        // so apply rolls out one revision. Applying the committed :dev tag and
+        // then running set image made two, and rollout undo landed on :dev
+        // instead of the last good build.
+        sh "sed -i -E 's#(image: tender-[a-z]+):dev#\\1:${TAG}#' k8s/*.yaml"
         sh "kubectl apply -n ${NS} -f k8s/"
-        sh "kubectl set image -n ${NS} deploy/mcp      mcp=tender-mcp:${TAG}"
-        sh "kubectl set image -n ${NS} deploy/backend  backend=tender-backend:${TAG}"
-        sh "kubectl set image -n ${NS} deploy/frontend frontend=tender-frontend:${TAG}"
       }
     }
 
@@ -83,7 +85,7 @@ pipeline {
 
   post {
     failure {
-      // set image has already been applied by the time Verify fails, so the
+      // The new images are already applied by the time Verify fails, so the
       // broken version is live. Undo is what actually restores service.
       // A failure before Deploy has nothing to undo; undoing then would roll
       // a healthy deployment back to an older revision.

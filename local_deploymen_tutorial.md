@@ -915,7 +915,7 @@ builds because a failing test should cost you 30 seconds, not the three minutes
 of a full image build. Put your cheapest, most likely-to-fail check first.
 
 **`post { failure { ... } }` is what makes it a deployment pipeline rather than
-a deployment script.** By the time the `Verify` stage fails, `kubectl set image`
+a deployment script.** By the time the `Verify` stage fails, the new image tag
 has already been applied — the broken version *is live*. Only an explicit
 `kubectl rollout undo` puts the previous version back. A pipeline that detects
 failure but leaves the broken version running has told you about an outage
@@ -994,10 +994,12 @@ pipeline {
     stage('Deploy') {
       steps {
         script { env.DEPLOYED = 'true' }
+        // Stamp this build's tag into the manifests (the checkout's copy only)
+        // so apply rolls out one revision. Applying the committed :dev tag and
+        // then running set image made two, and rollout undo landed on :dev
+        // instead of the last good build.
+        sh "sed -i -E 's#(image: tender-[a-z]+):dev#\\1:${TAG}#' k8s/*.yaml"
         sh "kubectl apply -n ${NS} -f k8s/"
-        sh "kubectl set image -n ${NS} deploy/mcp      mcp=tender-mcp:${TAG}"
-        sh "kubectl set image -n ${NS} deploy/backend  backend=tender-backend:${TAG}"
-        sh "kubectl set image -n ${NS} deploy/frontend frontend=tender-frontend:${TAG}"
       }
     }
 
@@ -1017,7 +1019,7 @@ pipeline {
 
   post {
     failure {
-      // set image has already been applied by the time Verify fails, so the
+      // The new images are already applied by the time Verify fails, so the
       // broken version is live. Undo is what actually restores service.
       // A failure before Deploy has nothing to undo; undoing then would roll
       // a healthy deployment back to an older revision.
@@ -1118,7 +1120,7 @@ recover, and know where to look when something is wrong.
 
 ## `[T]` 3.1 — What actually happens during a rolling update
 
-When `kubectl set image` changes a Deployment's image reference:
+When `kubectl apply` changes a Deployment's image reference:
 
 1. The Deployment creates a **new ReplicaSet** for the new image, and scales it
    up by one pod.
@@ -1226,7 +1228,7 @@ kubectl get pods -n tender -w
 What you should see:
 
 1. Tests pass. Images build. They load.
-2. `Deploy` succeeds — `kubectl set image` only *records the intent*, it does not
+2. `Deploy` succeeds — `kubectl apply` only *records the intent*, it does not
    wait.
 3. The new backend pod goes to `CrashLoopBackOff`.
 4. `Verify` blocks on `kubectl rollout status` and fails after 120 seconds.
@@ -1238,6 +1240,7 @@ What you should see:
 ```bash
 kubectl get pods -n tender          # backend is 1/1 Running again
 kubectl rollout history deploy/backend -n tender   # the undo is a new revision
+kubectl get deploy -n tender -o custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image   # previous build's tag, not :dev
 ```
 
 The build is red, but **the app is up**. Sit with that for a second — that is the
