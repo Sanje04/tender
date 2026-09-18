@@ -38,7 +38,7 @@ class FakeConversations:
 
 
 def _msg(i: int) -> dict[str, Any]:
-    return {"role": "user" if i % 3 == 0 else "assistant", "content": f"msg{i}", "timestamp": _TS}
+    return {"role": "user" if i % 2 == 0 else "assistant", "content": f"msg{i}", "timestamp": _TS}
 
 
 def test_get_recent_history_returns_last_n_turns_oldest_first(monkeypatch: pytest.MonkeyPatch) -> None:
