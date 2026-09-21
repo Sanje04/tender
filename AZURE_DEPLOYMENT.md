@@ -95,8 +95,14 @@ az containerapp create -n tender -g tender-rg --environment tender-env `
   --secrets mongodb-uri="<atlas-connection-string>" `
   --env-vars MONGODB_URI=secretref:mongodb-uri `
              OLLAMA_BASE_URL="http://<your-ollama-host>.<tailnet>.ts.net:11434" `
-             OLLAMA_MODEL="gemma4:latest"
+             OLLAMA_MODEL="gemma4:latest" `
+             IMPORT_ENABLED="false"
 ```
+
+`IMPORT_ENABLED="false"` has to be passed explicitly here. The application defaults
+it to `true` so that local dev and `docker compose` keep working, and unlike the
+split deployment there is no `backend-app.yaml.template` setting it for you. Seed
+the data from your machine as in [step 5](#step-5--get-your-data-in-from-your-machine).
 
 `--min-replicas 1` rather than 0, which a student subscription makes affordable and
 which buys two things: no cold start on the first visit, and no first-message-
@@ -279,12 +285,38 @@ A few decisions embedded in the scripts, so they are not mysteries later:
   environment only. Public traffic is HTTPS-only, terminated at the frontend's
   ingress.
 
-## Step 5 — Get your data in
+## Step 5 — Get your data in, from your machine
 
 A fresh deployment has no accounts or transactions: the backend image deliberately
 ships neither `scripts/seed_transactions.py` nor `backend/data/*.csv` (see
-`backend/specs.md` Phase 5). Load data through the running app — open it and use
-**Import CSV** with a bank-statement export. This is the reason that feature exists.
+`backend/specs.md` Phase 5).
+
+**Seed Atlas from your machine before deploying, rather than importing through the
+running app.** The deployment ships with `IMPORT_ENABLED=false`
+(`infra/backend-app.yaml.template`), which makes `POST /api/transactions/import`
+return 404 — see [Known tradeoffs](#known-tradeoffs) for why that endpoint cannot
+be left open on a public hostname.
+
+```powershell
+# In backend/.env, temporarily point MONGODB_URI at the Atlas connection string.
+cd backend
+.\.venv\Scripts\python.exe scripts\seed_transactions.py
+# Then point MONGODB_URI back at your local MongoDB.
+```
+
+The script is idempotent, so re-running it is the normal way to refresh. Because
+`data/transactions.csv` stores `days_ago` rather than absolute dates, each run
+re-anchors the data to "the last ~6 months up to today" — a deployment seeded once
+in March does not read as stale in August; re-run the script and it is current
+again.
+
+This is also the better demo: whoever opens the link lands on a populated dashboard
+instead of an empty upload screen.
+
+If you specifically want import available on the deployment — to load a real bank
+export into it — set `IMPORT_ENABLED=true` on the backend app and treat the URL as
+private for as long as it stays on, since anyone holding the link can replace all
+of the data while it is.
 
 ## Step 6 — Make merges deploy themselves
 
@@ -336,12 +368,18 @@ dead link is unacceptable, the fix already has a spec:
 [`docs/specs.md`](docs/specs.md) Phase 9 makes the provider pluggable, and pointing
 it at Azure AI Foundry would remove the home-machine dependency entirely.
 
-**`POST /api/transactions/import` is unauthenticated, on a public URL.** Anyone with
-the link can wipe and replace the transaction data, because import is a full
-replace (`backend/specs.md` Phase 5). This deployment was scoped to minimum
-hardening — a health endpoint, narrowed CORS, the existing per-IP rate limiter — and
-a shared-secret gate on that endpoint was consciously left out. Worth revisiting
-before the link is shared widely.
+**`POST /api/transactions/import` is disabled here, not secured.** Import is a full
+replace (`backend/specs.md` Phase 5), so on a public URL an open one is a data-wipe
+button for anyone holding the link. `IMPORT_ENABLED=false` in
+`infra/backend-app.yaml.template` makes it 404 instead.
+
+Disabled rather than authenticated because the obvious fix does not work: the caller
+is the browser (`ui/src/services/transactions.ts`), so a shared secret checked in
+`main.py` would have to reach the frontend as a `VITE_` variable — which Vite inlines
+into the JS bundle at build time, where anyone can read it out of devtools. It would
+authenticate nobody. Gating it properly means a passphrase typed into the import
+dialog, so the secret is never in the bundle; that is UI work a demo does not need,
+because step 5 seeds the data instead.
 
 **The rate limiter is per-replica and in-memory.** Fine at `maxReplicas=1`, and it
 resets on every cold start. It is abuse mitigation, not a quota.

@@ -75,6 +75,15 @@ properties:
           # HTTP here, so redirecting would loop the platform's own traffic.
           - name: FORCE_HTTPS
             value: "false"
+          # Also false on purpose. POST /api/transactions/import is
+          # unauthenticated and replaces all account/transaction data outright,
+          # so on a public hostname it is a data-wipe button for anyone with the
+          # link. It cannot be gated with a shared-secret header because the
+          # caller is the browser and the secret would ship in the JS bundle.
+          # Seed this deployment's Atlas database once instead -- see
+          # AZURE_DEPLOYMENT.md step 5.
+          - name: IMPORT_ENABLED
+            value: "false"
           # Starts wide open because the frontend's hostname does not exist yet;
           # the deploy script narrows this to that hostname once it does.
           - name: ALLOWED_ORIGINS

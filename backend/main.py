@@ -48,6 +48,15 @@ MAX_MESSAGE_LENGTH = 4000  # keep in sync with ui/src/constants.ts
 if os.getenv("FORCE_HTTPS", "false").lower() == "true":
     app.add_middleware(HTTPSRedirectMiddleware)
 
+# On by default so local dev and the compose deployment are unchanged, but set to
+# false on any public URL: POST /api/transactions/import is unauthenticated and
+# destructive (a full accounts/transactions replace -- see specs.md Phase 5), so
+# on a public hostname anyone with the link could wipe the data. It can't be fixed
+# with a shared-secret header, because the caller is the browser and a build-time
+# secret ships inside the JS bundle. A deployment therefore seeds its data once
+# (backend/scripts/seed_transactions.py) and turns this off -- see AZURE_DEPLOYMENT.md.
+IMPORT_ENABLED = os.getenv("IMPORT_ENABLED", "true").lower() == "true"
+
 
 # Fixed-window rate limit per client IP, to slow down basic chat spam/flooding.
 RATE_LIMIT_MAX_REQUESTS = 20
@@ -365,7 +374,18 @@ async def import_transactions(
     Like GET /api/transactions, this is display-tier plumbing for the
     frontend only -- the agent never calls this. Not rate-limited, same
     reasoning as GET /api/transactions above.
+
+    Disabled entirely when IMPORT_ENABLED is false, which is how a public
+    deployment protects the full-replace semantics below.
     """
+    # 404 rather than 403: a deployment with import off should look like it never
+    # had the route, not like it has one worth attacking.
+    if not IMPORT_ENABLED:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=ChatError(error="Not Found").model_dump(),
+        )
+
     raw = await file.read()
     try:
         csv_text = raw.decode("utf-8")

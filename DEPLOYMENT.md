@@ -104,6 +104,20 @@ use **Import CSV** to upload a bank-statement export — this is the actual
 reason the CSV import feature (Phase 5) exists, not just a local-dev
 convenience.
 
+**`.env.production.example` ships `IMPORT_ENABLED=false`, so you have to turn
+import on to do that.** The endpoint takes no credential and replaces every
+account and transaction in one request, which is fine on a machine only you
+can reach and not fine on a hostname you have handed out. Once step 5 puts a
+reverse proxy in front of this, decide which one you have:
+
+- **Tunnel is private to you** — leave `IMPORT_ENABLED=true` and import
+  whenever you have a new statement. This is the normal case for a
+  single-operator self-hosted install.
+- **The URL is shared with anyone else** — set it to `true`, import, set it
+  back to `false`, and `docker compose up -d` to apply. Or skip import
+  entirely and seed from your machine with
+  `scripts/seed_transactions.py` pointed at the deployment's `MONGODB_URI`.
+
 ## 5. Put a reverse proxy in front
 
 Point a TLS-terminating reverse proxy of your choice (Cloudflare Tunnel,
