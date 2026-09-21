@@ -51,7 +51,11 @@ import observability
 logger = logging.getLogger(__name__)
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
+# Defaults to the model this project is actually developed and evaluated
+# against -- see evals/README.md. It was llama3.1:8b, which no config in the
+# repo selected and no deployment ran, so the default was the one model
+# guaranteed not to be installed.
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:latest")
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant with two sets of tools. First, tools to list, "
