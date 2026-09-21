@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://example.com/sitemap.xml
+# No Sitemap: line until there is a real deployed hostname. It previously
+# pointed at https://example.com/sitemap.xml, and that sitemap's only <loc> was
+# https://example.com/ -- so between them they told crawlers this site lives on
+# a domain it does not own. A single-page SPA gains nothing from a sitemap, so
+# the file was removed rather than corrected; add both back together if a
+# deployment ever needs them.

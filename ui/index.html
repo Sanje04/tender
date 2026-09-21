@@ -11,23 +11,26 @@
 
     <link rel="icon" type="image/png" href="/favicon.png" />
 
-    <!-- TODO: replace https://example.com with the real deployed URL once this has a domain -->
-    <link rel="canonical" href="https://example.com/" />
+    <!-- The URL-bearing tags (canonical, og:url, og:image, twitter:image) are
+         deliberately absent until there is a real deployed hostname. They
+         previously pointed at https://example.com, which is worse than omitting
+         them: a canonical URL naming another origin tells a crawler the real
+         page lives there, and og:image pointed at a file that has never
+         existed. Restore all four together once a deployment has a hostname,
+         and switch twitter:card back to summary_large_image at the same time --
+         that card type renders badly with no image. -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Tender — Self-Hosted AI Chatbot" />
     <meta
       property="og:description"
       content="A self-hosted AI chatbot with a React frontend and FastAPI backend, powered by a locally-hosted LLM via Ollama."
     />
-    <meta property="og:image" content="https://example.com/social-preview.png" />
-    <meta property="og:url" content="https://example.com/" />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Tender — Self-Hosted AI Chatbot" />
     <meta
       name="twitter:description"
       content="A self-hosted AI chatbot with a React frontend and FastAPI backend, powered by a locally-hosted LLM via Ollama."
     />
-    <meta name="twitter:image" content="https://example.com/social-preview.png" />
 
     <!-- Analytics: skipped for now (no provider configured). Drop a privacy-friendly
          snippet (e.g. Plausible) here before deploying, and remove the cookie
