@@ -20,6 +20,19 @@ spec:
           envFrom:
             - configMapRef: { name: tender-config }
             - secretRef:    { name: tender-secrets }
+          # Probes /health, not /mcp: the MCP path speaks streamable HTTP and
+          # answers a bare probe GET with 406, so pointing a probe at it would
+          # report a healthy server as failing. Like the backend's, both probes
+          # are dependency-free -- a MongoDB outage must not restart a tool
+          # server that is answering correctly.
+          readinessProbe:
+            httpGet: { path: /health, port: 9000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 9000 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
           resources:
             requests: { cpu: "50m", memory: "128Mi" }
             limits:   { memory: "384Mi" }

@@ -462,6 +462,54 @@ One gotcha that path surfaced, which bare-process dev cannot: **if `MONGODB_URI`
 
 ---
 
+## Phase 10: Observability — structured logs and metrics (implemented)
+
+Numbered 10, not 9: `docs/specs.md` reserves Phase 9 for the Ollama↔Claude provider switch, which remains spec-only.
+
+### Overview
+Both processes now emit one JSON object per log line and expose their own counters. Before this phase there was no measurement of any kind in the repo — no timing, no counters, no coverage — which made every performance or reliability claim about it unfalsifiable.
+
+It also fixes a live defect. `main.py` created a module logger and called `logger.exception(...)` in each of its five fail-soft handlers, but **never configured logging**. With no root handler installed those records fell through to `logging.lastResort` — stderr, WARNING and above, no timestamp, no context — and every `logger.info` in the API process was discarded outright. The repo's only `basicConfig` sat inside `mcp_server.py`'s `if __name__ == "__main__"` block, so it covered the tool server and nothing else.
+
+### Design
+One new module, `backend/observability.py`, imported by both processes. It depends on nothing else in the package (stdlib + `prometheus_client` only), which is what lets `agent.py` and `mcp_client.py` import it without a cycle.
+
+- **`configure_logging(service)`** installs a single stdout handler on the root logger, marked with a sentinel attribute so repeated calls don't stack duplicate handlers. `LOG_FORMAT=text` gives a human-readable formatter for local dev; JSON is the default because that is the deployed case. Uvicorn's three loggers are emptied and set to propagate, since uvicorn installs its own handlers with `propagate=False` and would otherwise put a second log shape on the same stdout. `httpx` is raised to WARNING because its per-request INFO line is a strictly poorer duplicate of `agent.py`'s own "Ollama call finished" record.
+- **Request IDs** live in a `ContextVar`, not a threaded parameter: it follows the task across `await`, so `agent.py` and `mcp_client.py` stamp their lines with the originating request's id without `run()` or `call_tool()` growing an argument they have no other use for. The API adopts an inbound `X-Request-ID` when present and mints one otherwise, echoes it on the response, and forwards it to the tool server, which adopts it off the raw ASGI scope. **That is the whole cross-process trace**: one chat turn produces correlated lines in both processes.
+- **Metrics** are module-level singletons (`prometheus_client` registers on construction and raises on a duplicate name). HTTP requests are labelled by *route template*, never raw path, so an unmatched or probing request cannot mint unbounded series. Histogram buckets are hand-picked per metric: the library default tops out at 10s, which would put nearly every Ollama observation in `+Inf` and make the histogram useless for exactly the case worth measuring.
+
+### What is instrumented
+| Metric | Labels | Notes |
+|---|---|---|
+| `tender_http_requests_total` | method, route, status class | Includes the rate limiter's 429s — the middleware is added last, so Starlette runs it outermost. |
+| `tender_http_request_duration_seconds` | method, route | |
+| `tender_ollama_call_duration_seconds` | phase, outcome | `phase` is `with_tools`/`no_tools`, not first/second: the tool-bearing call carries six schemas in its prompt and the follow-up does not, so splitting them keeps one slow shape from hiding in the other's average. Observed in a `finally`, so a timeout — the most diagnostic duration there is — is recorded too. |
+| `tender_mcp_call_duration_seconds` | tool, outcome | |
+| `tender_mcp_call_failures_total` | tool, reason | `timeout` / `unreachable` / `tool_error`. |
+| `tender_tool_invocations_total` | tool, outcome | Includes `not_confirmed`, which is invisible from the server side because a blocked delete sends no invocation at all. |
+
+### Two new endpoints, both dependency-free
+- **`GET /metrics`** on the API. Deliberately not under `/api/`: `ui/nginx.conf.template` proxies only `/api/` and the Azure backend app has internal ingress, so it is unreachable from the public frontend hostname. Outside the rate limiter by the same construction as `/api/health`, and excluded from its own histogram so scrape traffic never reads as application load.
+- **`GET /health`** on the MCP server. A separate route because `MCP_PATH` cannot serve as one: **verified — a bare probe `GET /mcp` returns 406**, so pointing a probe at it would report a healthy server as failing. This is why `k8s/mcp.yaml` had no probes while `backend.yaml` had two; it now has both.
+
+Both mirror `/api/health` in touching no external dependency. Failing a probe on a MongoDB outage would have the platform restart a process that is answering correctly, which contradicts the fail-soft posture of Phase 8.
+
+### Config (`backend/.env`)
+`LOG_LEVEL` (default `INFO`) and `LOG_FORMAT` (`json` default, `text` for local dev).
+
+### Verified behavior (2026-09-21)
+Hermetically, via `TestClient` (`pytest -m "not live_llm"`, 50 passed):
+- A served request produces a JSON line carrying `request_id`, `route`, `status` and `duration_ms`, and `/metrics` returns Prometheus exposition labelled with the route template.
+- An inbound `X-Request-ID` is adopted rather than replaced, and echoed on the response.
+- Scrapes do not appear in the app's own histogram.
+- A 400 is counted, confirming the middleware sits outside the validation paths.
+- `JsonFormatter` collapses a traceback into a single `exc` field on one line.
+- `GET /health` on the MCP server returns 200 while `GET /mcp` returns 406 — the observation the separate route exists for.
+
+**Not yet verified live:** the cross-process request-id correlation has been exercised only in-process. Confirming it end to end needs a running `mcp_server.py` with a real tool call, and the p50/p95 latency figures the histograms are there to produce need a load run against a deployed instance.
+
+---
+
 ## Retrieval Architecture: what "RAG" already means here (documentation of existing behavior — no code change)
 
 ### Why this section exists
