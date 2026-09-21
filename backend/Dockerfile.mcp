@@ -14,8 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Deliberately narrower than backend/Dockerfile's copy: no main.py (this process
 # serves no HTTP API of its own) and no agent.py (Ollama is the backend's
-# dependency, not this one's). Just the MCP server and the shared data layer.
-COPY mcp_server.py db.py ./
+# dependency, not this one's). Just the MCP server, the shared data layer, and
+# the shared logging/metrics setup -- mcp_server.py imports observability at
+# module scope to emit the same JSON logs and carry the request id across the
+# process boundary, so it is required here too, not backend-only.
+COPY mcp_server.py db.py observability.py ./
 
 EXPOSE 9000
 

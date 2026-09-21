@@ -7,8 +7,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # mcp_client.py is required, not optional: agent.py imports it at module scope
 # (specs.md Phase 8), so omitting it fails at uvicorn's import of main:app, not
-# at first tool use. Keep this list in sync when adding a backend module.
-COPY main.py agent.py db.py mcp_client.py ./
+# at first tool use. observability.py is the same kind of hard dependency --
+# main.py, agent.py and mcp_client.py all import it at module scope (specs.md
+# Phase 10). Keep this list in sync when adding a backend module: because this
+# is an allowlist, a missing module is a container that crash-loops on import
+# and a 502 from nginx, not a build error.
+COPY main.py agent.py db.py mcp_client.py observability.py ./
 
 EXPOSE 8000
 
