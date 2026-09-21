@@ -1,9 +1,15 @@
 # Kubernetes Deployment Plan (Free-Tier)
 
 This is the step-by-step plan for moving Tender off `docker-compose` onto a
-single-node Kubernetes cluster, using only free services. It's a plan
-document — no manifests exist yet. Follow the steps in order; each one
-builds on the last.
+single-node Kubernetes cluster **on Oracle Cloud, driven by Argo CD**, using only
+free services. Follow the steps in order; each one builds on the last.
+
+**Status: still a plan — nothing here is built.** Note the ambiguity this
+sentence used to carry: the repo *does* now have Kubernetes manifests in `k8s/`,
+but they target a **local Minikube cluster driven by Jenkins** (see
+`docs/design.md` and the `Jenkinsfile`), which is a different topology from the
+one below. No Oracle Cloud tenancy, no k3s cluster, and no Argo CD `Application`
+manifest exist.
 
 > **Predates Phase 8.** This plan was written when the app was two containers.
 > It's now three: `backend/specs.md` Phase 8 added an `mcp` service (the MCP
