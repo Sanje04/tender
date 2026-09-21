@@ -24,3 +24,7 @@ sse-starlette==2.1.3
 # Pulled in by mcp anyway, pinned explicitly because mcp_server.py imports it
 # directly to validate tool arguments against their declared schemas.
 jsonschema==4.26.0
+
+# Metrics and structured logs (see observability.py). Dependency-free, so it
+# does not disturb the mcp/starlette/fastapi pin lock above.
+prometheus-client==0.21.0
