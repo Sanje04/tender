@@ -1,8 +1,10 @@
-# Tender — Self-Hosted AI Chatbot
+# Tender — Self-Hosted AI Finance Assistant
 
-[![CI](https://github.com/Sanje04/Ledgr/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanje04/Ledgr/actions/workflows/ci.yml)
+[![CI](https://github.com/Sanje04/tender/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanje04/tender/actions/workflows/ci.yml)
 
-A full-stack chat application with a React/TypeScript frontend and a Python/FastAPI backend, designed to connect to a **locally-hosted LLM (via Ollama)** instead of a paid third-party API. Built as a hands-on exercise in full-stack integration, API contract design, and running open-weight models on your own hardware.
+Import a bank statement, get a spending dashboard, and ask an AI assistant questions about your own money — with the model running on **your hardware via Ollama**, not a paid third-party API. React/TypeScript frontend, Python/FastAPI backend, MongoDB, and a separate tool server the agent talks to over the Model Context Protocol.
+
+The interesting part isn't the chat box. It's that the assistant **decides when to call a tool** — six of them, served by a second process it discovers at runtime — and that the system keeps answering when that process, or MongoDB, or Ollama itself is down.
 
 ## Why this project
 
@@ -259,7 +261,9 @@ The point is the protocol boundary: tools become a service with a discoverable, 
 - [ ] Frontend updated to load history from the backend instead of `localStorage`
 - [x] Multi-turn conversation context passed to the model, bounded to a configurable number of recent turns
 - [x] Tools extracted into a standalone MCP server the backend discovers at startup, instead of a hardcoded tool table
-- [x] Deployed to Azure Container Apps on a public HTTPS URL, free tier, with the LLM still self-hosted behind a Tailscale tunnel — see [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md)
+- [ ] Deployed to Azure Container Apps on a public HTTPS URL, free tier, with the LLM still self-hosted behind a Tailscale tunnel. **The deployment is written but not currently running:** `infra/deploy.ps1`/`deploy.sh`, the backend + `tailscaled` sidecar container-app definition, and the CI deploy job (pinned to the commit SHA) are all complete and idempotent, but no instance is provisioned, so there is no live URL to link. See [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md)
+- [x] Local Kubernetes (Minikube) deployment driven by a Jenkins pipeline — tests, three image builds, rollout, smoke test, and automatic `kubectl rollout undo` on failure — see [docs/design.md](docs/design.md) and [docs/local-deployment-tutorial.md](docs/local-deployment-tutorial.md)
+- [x] Structured JSON logging with cross-process request-id correlation, and Prometheus metrics at `/metrics` — see [backend/specs.md](backend/specs.md) Phase 10
 - [ ] RAG over the transaction/conversation data, exposed as an MCP tool
 - [ ] Per-tool authorization (RBAC) on the MCP server, so a tool server is safe to expose to clients other than this backend
 
