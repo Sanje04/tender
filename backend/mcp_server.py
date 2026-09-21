@@ -44,11 +44,19 @@ from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.applications import Starlette
+from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 load_dotenv()
 
 import db
+import observability
+
+# At import time, not inside `if __name__ == "__main__"` where the old
+# basicConfig call lived: Dockerfile.mcp runs this file directly, but serving it
+# as `mcp_server:app` under an external uvicorn skips __main__ entirely and used
+# to leave the tool server with no log configuration at all.
+observability.configure_logging("mcp")
 
 logger = logging.getLogger(__name__)
 
@@ -351,6 +359,15 @@ class _StreamableHTTPEndpoint:
         self._session_manager = session_manager
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        # Adopt the caller's request id so this process's log lines carry the same
+        # id as the /api/chat turn that triggered them. Read off the raw ASGI
+        # scope rather than a Starlette Request because this endpoint deliberately
+        # never builds one (see the class docstring) -- headers there are a list
+        # of lowercased (bytes, bytes) pairs.
+        for key, value in scope.get("headers") or []:
+            if key == b"x-request-id":
+                observability.set_request_id(value.decode("latin-1", "replace")[:64])
+                break
         await self._session_manager.handle_request(scope, receive, send)
 
 
@@ -370,6 +387,22 @@ def build_app() -> Starlette:
     """
     session_manager = StreamableHTTPSessionManager(app=server, json_response=False, stateless=True)
 
+    async def health(_request: Any) -> JSONResponse:
+        """Liveness/readiness probe for this process (k8s/mcp.yaml).
+
+        A separate route because MCP_PATH cannot serve as one: it speaks
+        streamable HTTP and rejects a bare probe GET that carries none of the
+        session headers it expects, so probing it would report a healthy server
+        as failing. An ordinary async function here, unlike the MCP endpoint
+        below, precisely because this one *wants* Starlette's request/response
+        wrapping.
+
+        Mirrors main.py's /api/health in touching nothing: MongoDB is reachable
+        or not per tool call, and failing the probe on a database outage would
+        have Kubernetes restart a server that is answering correctly.
+        """
+        return JSONResponse({"status": "ok"})
+
     @contextlib.asynccontextmanager
     async def lifespan(app: Starlette):
         async with session_manager.run():
@@ -378,11 +411,12 @@ def build_app() -> Starlette:
     return Starlette(
         debug=False,
         routes=[
+            Route("/health", endpoint=health, methods=["GET"]),
             Route(
                 MCP_PATH,
                 endpoint=_StreamableHTTPEndpoint(session_manager),
                 methods=["GET", "POST", "DELETE"],
-            )
+            ),
         ],
         lifespan=lifespan,
     )
@@ -394,6 +428,5 @@ app = build_app()
 if __name__ == "__main__":
     import uvicorn
 
-    logging.basicConfig(level=logging.INFO)
     logger.info("Serving MCP tools on http://%s:%d%s", MCP_HOST, MCP_PORT, MCP_PATH)
     uvicorn.run(app, host=MCP_HOST, port=MCP_PORT)
