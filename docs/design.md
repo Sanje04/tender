@@ -1,9 +1,16 @@
 # Design — Local Kubernetes + Jenkins CI/CD for Tender
 
-**Status:** design only. Nothing in this document has been built yet — no
-`Jenkinsfile`, no `k8s/` manifests, and no Jenkins instance exist in this repo.
-Every snippet below is the proposed content for a file that still has to be
-created.
+**Status:** built. This document was written as a design, and the design was then
+carried out — `Jenkinsfile`, `jenkins/Dockerfile`, and the five manifests in
+`k8s/` all exist in this repo and the pipeline has been run, including a
+deliberate break-and-rollback drill. The header below said "nothing has been
+built yet" for some time after that stopped being true; treat the snippets as a
+record of what was built, not a proposal, and the files themselves as the
+authority where the two disagree.
+
+Still **not** built, and called out as out of scope at the end: ingress,
+in-cluster MongoDB/Ollama, a multi-node cluster, registry push, and Kubernetes
+Jenkins agents.
 
 **Goal.** Run the whole Tender stack on a local single-node Kubernetes cluster
 (Minikube) on a Windows 11 workstation, and drive builds and deploys from a
