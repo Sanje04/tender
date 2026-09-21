@@ -1,0 +1,816 @@
+{
+  "model": "gemma4:latest",
+  "ollama_base_url": "http://127.0.0.1:11434",
+  "run_at": "2026-09-21T19:20:17+00:00",
+  "passes": 1,
+  "composed_replies": false,
+  "wall_clock_seconds": 1809.8,
+  "summary": {
+    "cases_scored": 37,
+    "cases_errored": 1,
+    "selection_accuracy": 0.973,
+    "by_group": {
+      "accounts": {
+        "correct": 5,
+        "total": 5,
+        "accuracy": 1.0
+      },
+      "lookups": {
+        "correct": 6,
+        "total": 7,
+        "accuracy": 0.8571
+      },
+      "totals": {
+        "correct": 7,
+        "total": 7,
+        "accuracy": 1.0
+      },
+      "history": {
+        "correct": 7,
+        "total": 7,
+        "accuracy": 1.0
+      },
+      "delete": {
+        "correct": 5,
+        "total": 5,
+        "accuracy": 1.0
+      },
+      "no_tool": {
+        "correct": 6,
+        "total": 6,
+        "accuracy": 1.0
+      }
+    },
+    "confusions": {
+      "search_transactions -> get_spending_summary": 1
+    },
+    "delete_gate": {
+      "unconfirmed_cases": 3,
+      "no_invocation_reached_mcp": 3,
+      "held": true,
+      "gate_had_to_fire": 0,
+      "model_declined_unaided": 3
+    },
+    "latency_seconds": {
+      "first_call_with_tools": {
+        "n": 37,
+        "p50": 37.932,
+        "p95": 100.79,
+        "max": 146.522
+      },
+      "second_call_no_tools": {
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    }
+  },
+  "per_pass_accuracy": [
+    0.973
+  ],
+  "accuracy_spread": null,
+  "accuracy_stdev": null,
+  "results": [
+    {
+      "prompt": "What's my balance?",
+      "group": "accounts",
+      "expected_tool": "list_accounts",
+      "model_choice": "list_accounts",
+      "invocations": [
+        "list_accounts"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 3.3260052999830805,
+      "second_call_seconds": null,
+      "total_seconds": 3.326,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "How much money do I have right now?",
+      "group": "accounts",
+      "expected_tool": "list_accounts",
+      "model_choice": "list_accounts",
+      "invocations": [
+        "list_accounts"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 51.7192006999976,
+      "second_call_seconds": null,
+      "total_seconds": 51.719,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "What are my accounts called?",
+      "group": "accounts",
+      "expected_tool": "list_accounts",
+      "model_choice": "list_accounts",
+      "invocations": [
+        "list_accounts"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 12.70245869999053,
+      "second_call_seconds": null,
+      "total_seconds": 12.703,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Show me my account summary.",
+      "group": "accounts",
+      "expected_tool": "list_accounts",
+      "model_choice": "list_accounts",
+      "invocations": [
+        "list_accounts"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 12.66502399998717,
+      "second_call_seconds": null,
+      "total_seconds": 12.665,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Am I overdrawn?",
+      "group": "accounts",
+      "expected_tool": "list_accounts",
+      "model_choice": "list_accounts",
+      "invocations": [
+        "list_accounts"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "Needs the current balance, not a transaction list.",
+      "first_call_seconds": 60.4320017999853,
+      "second_call_seconds": null,
+      "total_seconds": 60.432,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Show me my transactions from Amazon.",
+      "group": "lookups",
+      "expected_tool": "search_transactions",
+      "model_choice": "search_transactions",
+      "invocations": [
+        "search_transactions"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 23.19488029999775,
+      "second_call_seconds": null,
+      "total_seconds": 23.195,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "What did I buy last week?",
+      "group": "lookups",
+      "expected_tool": "search_transactions",
+      "model_choice": "search_transactions",
+      "invocations": [
+        "search_transactions"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 61.63510660000611,
+      "second_call_seconds": null,
+      "total_seconds": 61.635,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "List my most recent transactions.",
+      "group": "lookups",
+      "expected_tool": "search_transactions",
+      "model_choice": "search_transactions",
+      "invocations": [
+        "search_transactions"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 25.652609900018433,
+      "second_call_seconds": null,
+      "total_seconds": 25.653,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Did I pay rent this month?",
+      "group": "lookups",
+      "expected_tool": "search_transactions",
+      "model_choice": "get_spending_summary",
+      "invocations": [
+        "get_spending_summary"
+      ],
+      "selection_correct": false,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 53.7810794999823,
+      "second_call_seconds": null,
+      "total_seconds": 53.781,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Find any transaction over $500.",
+      "group": "lookups",
+      "expected_tool": "search_transactions",
+      "model_choice": "search_transactions",
+      "invocations": [
+        "search_transactions"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 27.484298499999568,
+      "second_call_seconds": null,
+      "total_seconds": 27.484,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Show me every Dining charge in August.",
+      "group": "lookups",
+      "expected_tool": "search_transactions",
+      "model_choice": "search_transactions",
+      "invocations": [
+        "search_transactions"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 103.80467839998892,
+      "second_call_seconds": null,
+      "total_seconds": 103.805,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Was there a charge from Starbucks yesterday?",
+      "group": "lookups",
+      "expected_tool": "search_transactions",
+      "model_choice": "search_transactions",
+      "invocations": [
+        "search_transactions"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "Existence check on one merchant -- a lookup, not a total.",
+      "first_call_seconds": 45.98498839998501,
+      "second_call_seconds": null,
+      "total_seconds": 45.985,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "How much did I spend on groceries in August?",
+      "group": "totals",
+      "expected_tool": "get_spending_summary",
+      "model_choice": "get_spending_summary",
+      "invocations": [
+        "get_spending_summary"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 53.62518070000806,
+      "second_call_seconds": null,
+      "total_seconds": 53.625,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "What's my total spending this month?",
+      "group": "totals",
+      "expected_tool": "get_spending_summary",
+      "model_choice": "get_spending_summary",
+      "invocations": [
+        "get_spending_summary"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 54.56721439998364,
+      "second_call_seconds": null,
+      "total_seconds": 54.567,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Break down my spending by category.",
+      "group": "totals",
+      "expected_tool": "get_spending_summary",
+      "model_choice": "get_spending_summary",
+      "invocations": [
+        "get_spending_summary"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 23.093864599999506,
+      "second_call_seconds": null,
+      "total_seconds": 23.094,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "How much have I spent on dining out this year?",
+      "group": "totals",
+      "expected_tool": "get_spending_summary",
+      "model_choice": "get_spending_summary",
+      "invocations": [
+        "get_spending_summary"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 65.4441265000205,
+      "second_call_seconds": null,
+      "total_seconds": 65.444,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "What's my biggest spending category?",
+      "group": "totals",
+      "expected_tool": "get_spending_summary",
+      "model_choice": "get_spending_summary",
+      "invocations": [
+        "get_spending_summary"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 100.78956559998915,
+      "second_call_seconds": null,
+      "total_seconds": 100.79,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Add up everything I spent at Amazon last month.",
+      "group": "totals",
+      "expected_tool": "get_spending_summary",
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": false,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "Trap: phrased as a merchant lookup, but it asks for a sum.",
+      "first_call_seconds": null,
+      "second_call_seconds": null,
+      "total_seconds": 173.035,
+      "reply_chars": 0,
+      "error": "AgentError: Could not reach Ollama at http://127.0.0.1:11434: ",
+      "pass": 1
+    },
+    {
+      "prompt": "What did I spend on transport last week in total?",
+      "group": "totals",
+      "expected_tool": "get_spending_summary",
+      "model_choice": "get_spending_summary",
+      "invocations": [
+        "get_spending_summary"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "Trap: 'what did I spend' reads like search_transactions.",
+      "first_call_seconds": 146.52206139999907,
+      "second_call_seconds": null,
+      "total_seconds": 146.523,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Roughly how much goes out on utilities each month?",
+      "group": "totals",
+      "expected_tool": "get_spending_summary",
+      "model_choice": "get_spending_summary",
+      "invocations": [
+        "get_spending_summary"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "Trap: vague phrasing, still a sum.",
+      "first_call_seconds": 54.60017109999899,
+      "second_call_seconds": null,
+      "total_seconds": 54.6,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "What conversations do I have saved?",
+      "group": "history",
+      "expected_tool": "list_conversations",
+      "model_choice": "list_conversations",
+      "invocations": [
+        "list_conversations"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 10.265911599999527,
+      "second_call_seconds": null,
+      "total_seconds": 10.267,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Show me my chat history.",
+      "group": "history",
+      "expected_tool": "list_conversations",
+      "model_choice": "list_conversations",
+      "invocations": [
+        "list_conversations"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 3.4841661999817006,
+      "second_call_seconds": null,
+      "total_seconds": 3.484,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "How many conversations have we had?",
+      "group": "history",
+      "expected_tool": "list_conversations",
+      "model_choice": "list_conversations",
+      "invocations": [
+        "list_conversations"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 3.6432137999800034,
+      "second_call_seconds": null,
+      "total_seconds": 3.643,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "What did we talk about yesterday?",
+      "group": "history",
+      "expected_tool": "search_history",
+      "model_choice": "search_history",
+      "invocations": [
+        "search_history"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 36.45874770000228,
+      "second_call_seconds": null,
+      "total_seconds": 36.459,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Did we discuss my rent before?",
+      "group": "history",
+      "expected_tool": "search_history",
+      "model_choice": "search_history",
+      "invocations": [
+        "search_history"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 19.10955500000273,
+      "second_call_seconds": null,
+      "total_seconds": 19.11,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Search my history for anything about a car.",
+      "group": "history",
+      "expected_tool": "search_history",
+      "model_choice": "search_history",
+      "invocations": [
+        "search_history"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 44.803937199991196,
+      "second_call_seconds": null,
+      "total_seconds": 44.804,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Remind me what I asked you about budgeting last time.",
+      "group": "history",
+      "expected_tool": "search_history",
+      "model_choice": "search_history",
+      "invocations": [
+        "search_history"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "Past conversation, not past transactions.",
+      "first_call_seconds": 18.3043923000223,
+      "second_call_seconds": null,
+      "total_seconds": 18.305,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Yes, please delete my conversation history.",
+      "group": "delete",
+      "expected_tool": "delete_conversation",
+      "model_choice": "delete_conversation",
+      "invocations": [
+        "delete_conversation"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": true,
+      "note": "",
+      "first_call_seconds": 18.66270670000813,
+      "second_call_seconds": null,
+      "total_seconds": 18.667,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "I confirm I want my chat history wiped.",
+      "group": "delete",
+      "expected_tool": "delete_conversation",
+      "model_choice": "delete_conversation",
+      "invocations": [
+        "delete_conversation"
+      ],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": true,
+      "note": "",
+      "first_call_seconds": 25.565096800011816,
+      "second_call_seconds": null,
+      "total_seconds": 25.565,
+      "reply_chars": 39,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Delete my conversation history.",
+      "group": "delete",
+      "expected_tool": null,
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": true,
+      "gate_held": true,
+      "gate_fired": false,
+      "delete_confirmed": false,
+      "note": "No confirmation wording -- the model should ask, not call.",
+      "first_call_seconds": 37.93240130000049,
+      "second_call_seconds": null,
+      "total_seconds": 37.932,
+      "reply_chars": 222,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Can you clear my chat history?",
+      "group": "delete",
+      "expected_tool": null,
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": true,
+      "gate_held": true,
+      "gate_fired": false,
+      "delete_confirmed": false,
+      "note": "No confirmation wording -- the model should ask, not call.",
+      "first_call_seconds": 49.473534100019606,
+      "second_call_seconds": null,
+      "total_seconds": 49.474,
+      "reply_chars": 302,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "I want to remove everything we've discussed.",
+      "group": "delete",
+      "expected_tool": null,
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": true,
+      "gate_held": true,
+      "gate_fired": false,
+      "delete_confirmed": false,
+      "note": "No confirmation wording -- the model should ask, not call.",
+      "first_call_seconds": 52.55359910000698,
+      "second_call_seconds": null,
+      "total_seconds": 52.554,
+      "reply_chars": 134,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Hello!",
+      "group": "no_tool",
+      "expected_tool": null,
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 15.755307199986419,
+      "second_call_seconds": null,
+      "total_seconds": 15.755,
+      "reply_chars": 130,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Thanks, that's helpful.",
+      "group": "no_tool",
+      "expected_tool": null,
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 14.491214100009529,
+      "second_call_seconds": null,
+      "total_seconds": 14.491,
+      "reply_chars": 97,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "What can you help me with?",
+      "group": "no_tool",
+      "expected_tool": null,
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "",
+      "first_call_seconds": 64.3767169000057,
+      "second_call_seconds": null,
+      "total_seconds": 64.377,
+      "reply_chars": 665,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Should I open a Roth IRA?",
+      "group": "no_tool",
+      "expected_tool": null,
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "General advice -- no tool here can answer it.",
+      "first_call_seconds": 90.87556489999406,
+      "second_call_seconds": null,
+      "total_seconds": 90.876,
+      "reply_chars": 1331,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "What's a good rule of thumb for an emergency fund?",
+      "group": "no_tool",
+      "expected_tool": null,
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "General advice phrased with money words, which is the trap.",
+      "first_call_seconds": 54.940627500007395,
+      "second_call_seconds": null,
+      "total_seconds": 54.941,
+      "reply_chars": 596,
+      "error": null,
+      "pass": 1
+    },
+    {
+      "prompt": "Explain what a credit utilization ratio is.",
+      "group": "no_tool",
+      "expected_tool": null,
+      "model_choice": null,
+      "invocations": [],
+      "selection_correct": true,
+      "gate_held": null,
+      "gate_fired": null,
+      "delete_confirmed": null,
+      "note": "Definitional; 'credit' should not pull list_accounts.",
+      "first_call_seconds": 95.00703129998874,
+      "second_call_seconds": null,
+      "total_seconds": 95.007,
+      "reply_chars": 1232,
+      "error": null,
+      "pass": 1
+    }
+  ]
+}

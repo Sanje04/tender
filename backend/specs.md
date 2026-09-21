@@ -515,6 +515,40 @@ Hermetically, via `TestClient` (`pytest -m "not live_llm"`, 50 passed):
 
 ---
 
+## Phase 11: Tool-selection eval (implemented)
+
+### Overview
+`backend/evals/` measures the decision everything else rests on: given a user message, does the model reach for the correct tool? Every existing test covers what happens *after* a tool is chosen — dispatch, argument validation, the failure paths — and none of them can cover the choice itself, because that is a property of the model and the prompt rather than of the code. This is a measurement, not a test suite; see `evals/README.md` for how to run it and how to read the number.
+
+### What it drives
+The real `agent.run()` — same `SYSTEM_PROMPT`, same one-round loop, same delete gate — with exactly two substitutions in `mcp_client`: `ensure_tools` returns schemas translated from `mcp_server.TOOL_DEFINITIONS` through the real `_to_ollama_schema` (so no MCP server process is needed and the model sees the production schemas byte-for-byte), and `call_tool` returns a canned result while recording the invocation (so no MongoDB is needed and no delete is ever real). **Ollama is not mocked**, which is the entire point.
+
+### Two signals, not one
+Each case records both what the model *asked for* and what actually *reached* the tool layer. They diverge on precisely the cases worth caring about: an unconfirmed `delete_conversation` stopped by the gate would, on invocations alone, look identical to the model declining to call anything. Selection accuracy is scored on the first; gate behaviour on the second, and reported separately because it is a property of our code rather than the model's.
+
+The gate report further splits "the model declined unaided" from "the gate had to fire", since *the gate held* is trivially true on a run where nothing tested it.
+
+### The second Ollama call is skipped by default
+The tool decision is made entirely by the first call; the second only turns a tool result into prose, which nothing here scores. Skipping it roughly halves the wall clock and touches no measured behaviour — the delete gate and the invocation record both run before it. `--full-reply` restores it for reading answers by hand.
+
+### Accuracy is deliberately not asserted on
+`tests/test_tool_selection_eval.py` (marked `live_llm`, so CI skips it) asserts the delete gate only. A threshold on accuracy would fail for reasons nobody introduced: it moves with the model and with sampling. The number is tracked in committed reports under `evals/reports/`, not enforced.
+
+### Verified behavior (2026-09-21, gemma4:latest, single pass)
+**Tool-selection accuracy: 36/37 completed cases (97.3%).** A 38th case timed out against Ollama and was excluded as an infrastructure failure rather than a wrong choice — counting it as a miss gives 36/38 (94.7%). One pass only, so this is a spot check; the runner's `--repeat` exists because a single pass over 38 prompts has real sampling variance.
+
+By group: `accounts` 5/5, `totals` 7/7, `history` 7/7, `delete` 5/5, `no_tool` 6/6, `lookups` 6/7.
+
+Three things worth recording:
+
+- **All six summary-vs-search traps passed.** The `totals` group is written to pull the wrong way ("add up everything I spent at Amazon last month" reads like a merchant lookup), and is the group that actually tests whether `SYSTEM_PROMPT`'s "always use `get_spending_summary` for totals" instruction survives contact with adversarial phrasing. It did.
+- **The only miss is arguably not one.** "Did I pay rent this month?" chose `get_spending_summary` where the label says `search_transactions`; a non-zero rent total does answer the question. The label was left alone rather than edited to match observed behaviour — a dataset tuned to what the model already does stops being a measurement.
+- **The delete gate never had to fire.** All three unconfirmed deletes were declined by the model itself, which is what `SYSTEM_PROMPT` and the tool description both instruct. The gate remains correct as defence-in-depth, but this run is not evidence that it works — only that it was not needed. The dataset originally labelled these `delete_conversation` on the assumption the gate would be what stopped them; the first run showed the label was wrong, and `dataset.py` carries the correction with its reasoning.
+
+**Latency, same run** (first call only, which is the one carrying six tool schemas): p50 37.9s, p95 100.8s, max 146.5s, n=37, on CPU-bound local inference. This is the context for `_call_ollama`'s 170s timeout — one case genuinely hit it. These are hardware numbers, not application numbers; they say nothing about the deployed path, where the model runs on a different machine.
+
+---
+
 ## Retrieval Architecture: what "RAG" already means here (documentation of existing behavior — no code change)
 
 ### Why this section exists
