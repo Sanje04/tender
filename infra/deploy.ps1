@@ -80,22 +80,29 @@ function Invoke-Az {
         Runs `az` and throws on a non-zero exit code. The CLI writes progress and
         warnings to stderr even on success, so this checks $LASTEXITCODE rather
         than treating any stderr output as failure.
-    #>
-    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
 
-    Write-Verbose "az $($Arguments -join ' ')"
-    $output = & az @Arguments 2>&1
+        Deliberately a *simple* function using $args, not an advanced one with
+        [Parameter(ValueFromRemainingArguments)]. That attribute makes this an
+        advanced function, which gains PowerShell's common parameters -- and then
+        any az short flag is parsed as one of those instead of being passed
+        through. `-o tsv` fails outright with "the parameter name 'o' is
+        ambiguous. Possible matches include: -OutVariable -OutBuffer", because
+        PowerShell prefix-matches it against them before az is ever invoked.
+        A simple function declares no parameters at all, so every token lands in
+        $args verbatim and az sees exactly what was written here.
+    #>
+    Write-Verbose "az $($args -join ' ')"
+    $output = & az @args 2>&1
     if ($LASTEXITCODE -ne 0) {
-        throw "az $($Arguments -join ' ') failed:`n$($output -join "`n")"
+        throw "az $($args -join ' ') failed:`n$($output -join "`n")"
     }
     return $output
 }
 
 function Test-AzResource {
-    <# Existence check that distinguishes "absent" from "az is broken". #>
-    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
-
-    & az @Arguments 2>$null | Out-Null
+    <# Existence check that distinguishes "absent" from "az is broken".
+       Simple function using $args for the same reason as Invoke-Az above. #>
+    & az @args 2>$null | Out-Null
     return ($LASTEXITCODE -eq 0)
 }
 
