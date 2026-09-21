@@ -32,7 +32,9 @@ loop itself is unchanged and just keeps appending to whatever `messages` it's gi
 """
 
 import json
+import logging
 import os
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -44,6 +46,9 @@ import httpx
 # call and owns no tool dispatch (specs.md Phase 8); everything else goes via MCP.
 import db
 import mcp_client
+import observability
+
+logger = logging.getLogger(__name__)
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
@@ -115,12 +120,22 @@ async def _execute_tool(name: str, arguments: dict[str, Any], user_message: str)
     the caller feeds that to the model as a normal tool result.
     """
     if name == "delete_conversation" and not _is_delete_confirmed(user_message):
+        # Counted, not just returned: "how often does the model try to delete
+        # without confirmation" is the number that says whether the gate is
+        # load-bearing, and it is invisible from the MCP server's side because
+        # a blocked delete sends no invocation at all.
+        observability.tool_invocations_total.labels(name, "not_confirmed").inc()
         return dict(NOT_CONFIRMED_RESULT)
 
     if name not in mcp_client.cached_tool_names():
+        observability.tool_invocations_total.labels(name, "unknown_tool").inc()
         return {"error": f"Unknown tool: {name}. It is not available on the tool server."}
 
-    return await mcp_client.call_tool(name, arguments)
+    result = await mcp_client.call_tool(name, arguments)
+    observability.tool_invocations_total.labels(
+        name, "error" if "error" in result else "ok"
+    ).inc()
+    return result
 
 
 async def _call_ollama(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None) -> dict[str, Any]:
@@ -132,6 +147,13 @@ async def _call_ollama(messages: list[dict[str, Any]], tools: list[dict[str, Any
     if tools:
         payload["tools"] = tools
 
+    # Labelled by whether schemas were sent rather than by call order, because
+    # that is the difference worth measuring: the tool-bearing call carries the
+    # six schemas in its prompt and the follow-up call does not, so splitting
+    # them keeps one slow shape from hiding inside the other's average.
+    phase = "with_tools" if tools else "no_tools"
+    started = time.perf_counter()
+    outcome = "error"
     try:
         # A cold model load (multi-GB) plus real inference can take well over
         # 60s -- keep this at or above nginx's proxy_read_timeout (nginx.conf.template)
@@ -139,10 +161,26 @@ async def _call_ollama(messages: list[dict[str, Any]], tools: list[dict[str, Any
         async with httpx.AsyncClient(timeout=170.0) as client:
             response = await client.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload)
             response.raise_for_status()
+        outcome = "ok"
     except httpx.RequestError as exc:
         raise AgentError(f"Could not reach Ollama at {OLLAMA_BASE_URL}: {exc}") from exc
     except httpx.HTTPStatusError as exc:
         raise AgentError(f"Ollama returned an error: {exc.response.status_code}") from exc
+    finally:
+        # In `finally` so a failed call is timed too -- a timeout is the single
+        # most useful duration to have on record, and returning early from the
+        # except branches would be exactly when it went missing.
+        duration = time.perf_counter() - started
+        observability.ollama_call_duration_seconds.labels(phase, outcome).observe(duration)
+        logger.info(
+            "Ollama call finished",
+            extra={
+                "phase": phase,
+                "outcome": outcome,
+                "model": OLLAMA_MODEL,
+                "duration_ms": round(duration * 1000, 1),
+            },
+        )
 
     return response.json()
 

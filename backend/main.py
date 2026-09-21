@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, ValidationError
 
 load_dotenv()
@@ -27,8 +27,17 @@ load_dotenv()
 import agent
 import db
 import mcp_client
+import observability
+
+# Installs the root log handler for this process. Called at import time, after
+# load_dotenv() so LOG_LEVEL/LOG_FORMAT from .env are visible, and before the app
+# is built so anything module-level below can log. Without this the API process
+# has no root handler at all and every logger.info() it makes is discarded.
+observability.configure_logging("api")
 
 logger = logging.getLogger(__name__)
+
+METRICS_PATH = "/metrics"
 
 app = FastAPI(title="Tender Chatbot Backend")
 
@@ -108,6 +117,73 @@ app.add_middleware(
 )
 
 
+def _route_template(request: Request) -> str:
+    """The matched route's path template, not the raw request path.
+
+    Every distinct label value is a separate time series, so labelling with the
+    raw path would let unmatched or probing requests mint unbounded series in the
+    registry. This app has only a handful of routes today; the bound is the point.
+    """
+    route = request.scope.get("route")
+    path = getattr(route, "path", None)
+    return path if isinstance(path, str) else "__unmatched__"
+
+
+# Added last, so Starlette runs it outermost: the request id therefore exists
+# before anything downstream can log, and the recorded duration covers the whole
+# stack -- including a 429 from the rate limiter above, which would otherwise be
+# the one response class that never showed up in the metrics.
+@app.middleware("http")
+async def observability_middleware(request: Request, call_next):
+    # Adopt an inbound id if a proxy or caller already set one, so a request keeps
+    # a single identity end to end; mint one otherwise.
+    request_id = request.headers.get("x-request-id") or observability.new_request_id()
+    observability.set_request_id(request_id)
+
+    # Scrapes are excluded from the app's own metrics so monitoring traffic never
+    # reads as application load.
+    if request.url.path == METRICS_PATH:
+        return await call_next(request)
+
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration = time.perf_counter() - started
+        route = _route_template(request)
+        observability.http_requests_total.labels(request.method, route, "5xx").inc()
+        observability.http_request_duration_seconds.labels(request.method, route).observe(duration)
+        logger.exception(
+            "%s %s failed",
+            request.method,
+            request.url.path,
+            extra={"route": route, "duration_ms": round(duration * 1000, 1)},
+        )
+        raise
+
+    duration = time.perf_counter() - started
+    route = _route_template(request)
+    status_class = f"{response.status_code // 100}xx"
+    observability.http_requests_total.labels(request.method, route, status_class).inc()
+    observability.http_request_duration_seconds.labels(request.method, route).observe(duration)
+
+    # Echoed so a caller (or the frontend, in a bug report) can quote the id that
+    # identifies their request in the server logs.
+    response.headers["X-Request-ID"] = request_id
+    logger.info(
+        "%s %s -> %d",
+        request.method,
+        request.url.path,
+        response.status_code,
+        extra={
+            "route": route,
+            "status": response.status_code,
+            "duration_ms": round(duration * 1000, 1),
+        },
+    )
+    return response
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=MAX_MESSAGE_LENGTH)
 
@@ -178,6 +254,25 @@ async def health() -> HealthResponse:
     so probe traffic can never consume a client's chat budget.
     """
     return HealthResponse(status="ok")
+
+
+@app.get(METRICS_PATH, include_in_schema=False)
+async def metrics() -> Response:
+    """Prometheus exposition for this process.
+
+    Deliberately not under /api/: ui/nginx.conf.template proxies only /api/ to
+    this backend and the Azure backend app has internal ingress, so this is not
+    reachable from the public frontend hostname -- it is a cluster-side concern,
+    not a user-facing endpoint. Outside the rate limiter by the same construction
+    as /api/health (the limiter matches /api/chat only), so scraping can never
+    consume a client's chat budget.
+
+    Like /api/health, it touches no external dependency: these are process-local
+    counters, so a scrape succeeds while Mongo, Ollama and the MCP server are all
+    down -- which is exactly when you most want the numbers.
+    """
+    payload, content_type = observability.render_metrics()
+    return Response(content=payload, media_type=content_type)
 
 
 @app.post("/api/chat", response_model=ChatResponse)

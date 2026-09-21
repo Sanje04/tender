@@ -34,10 +34,13 @@ import asyncio
 import json
 import logging
 import os
+import time
 from typing import Any
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
+
+import observability
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,17 @@ DISCOVERY_TIMEOUT_SECONDS = 10.0
 INVOCATION_TIMEOUT_SECONDS = 15.0
 
 _cached_tools: list[dict[str, Any]] = []
+
+
+def _trace_headers() -> dict[str, str]:
+    """Forward the current request id to the tool server.
+
+    This is the whole of the cross-process tracing story: mcp_server.py reads
+    this header back off the ASGI scope and adopts it, so one chat turn produces
+    log lines carrying the same id in both processes. Sent on discovery as well
+    as invocation, so a startup-time discovery failure is attributable too.
+    """
+    return {"X-Request-ID": observability.current_request_id()}
 
 
 def _to_ollama_schema(tool: Any) -> dict[str, Any] | None:
@@ -82,7 +96,9 @@ def _to_ollama_schema(tool: Any) -> dict[str, Any] | None:
 
 
 async def _list_tools_over_mcp() -> list[dict[str, Any]]:
-    async with streamablehttp_client(MCP_SERVER_URL, timeout=DISCOVERY_TIMEOUT_SECONDS) as (
+    async with streamablehttp_client(
+        MCP_SERVER_URL, headers=_trace_headers(), timeout=DISCOVERY_TIMEOUT_SECONDS
+    ) as (
         read_stream,
         write_stream,
         _,
@@ -184,6 +200,20 @@ def _result_to_dict(result: Any, name: str) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {"result": parsed}
 
 
+def _record_call(name: str, failure_reason: str | None, started: float) -> None:
+    """Record one invocation's duration, and its failure reason if it had one.
+
+    Duration is observed for failures as well as successes: a timeout's 15s is
+    more diagnostic than any successful call's, so dropping it would lose the
+    observations that matter most.
+    """
+    observability.mcp_call_duration_seconds.labels(
+        name, failure_reason or "ok"
+    ).observe(time.perf_counter() - started)
+    if failure_reason:
+        observability.mcp_call_failures_total.labels(name, failure_reason).inc()
+
+
 def _first_text(result: Any) -> str | None:
     for block in getattr(result, "content", None) or []:
         text = getattr(block, "text", None)
@@ -193,7 +223,9 @@ def _first_text(result: Any) -> str | None:
 
 
 async def _call_tool_over_mcp(name: str, arguments: dict[str, Any]) -> Any:
-    async with streamablehttp_client(MCP_SERVER_URL, timeout=INVOCATION_TIMEOUT_SECONDS) as (
+    async with streamablehttp_client(
+        MCP_SERVER_URL, headers=_trace_headers(), timeout=INVOCATION_TIMEOUT_SECONDS
+    ) as (
         read_stream,
         write_stream,
         _,
@@ -211,15 +243,23 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     result, unparseable payload) comes back as `{"error": ...}` so the caller
     can hand it to the model as an ordinary tool result.
     """
+    started = time.perf_counter()
     try:
         result = await asyncio.wait_for(
             _call_tool_over_mcp(name, arguments), timeout=INVOCATION_TIMEOUT_SECONDS
         )
     except asyncio.TimeoutError:
+        _record_call(name, "timeout", started)
         logger.warning("MCP invocation of %s timed out after %ss", name, INVOCATION_TIMEOUT_SECONDS)
         return {"error": f"Tool {name} timed out after {INVOCATION_TIMEOUT_SECONDS:.0f}s."}
     except Exception as exc:
+        _record_call(name, "unreachable", started)
         logger.exception("MCP invocation of %s failed", name)
         return {"error": f"Could not reach the tool server to run {name}: {exc}"}
 
-    return _result_to_dict(result, name)
+    payload = _result_to_dict(result, name)
+    # `_result_to_dict` folds an isError result, a missing body and an unparseable
+    # body into the same {"error": ...} shape the transport failures above use, so
+    # the only thing distinguishable here is "the server answered, but badly".
+    _record_call(name, "tool_error" if "error" in payload else None, started)
+    return payload
