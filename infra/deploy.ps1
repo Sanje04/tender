@@ -75,11 +75,69 @@ function Get-Required {
     return $value
 }
 
+# How many times one az call is retried when it fails in transit rather than
+# coming back with an answer. Eight rather than three because the failure this
+# exists for is a per-call coin flip on a bad network path (a broken IPv6 route
+# to management.azure.com resets roughly half of them), and a full deploy makes
+# on the order of twenty calls -- three attempts would still lose most runs.
+$script:AzRetryMax = 8
+
+function Test-AzTransient {
+    <#
+        True when az never got an answer out of the network, as opposed to
+        getting one it did not like.
+
+        Matched on the message text rather than on a non-zero exit code on
+        purpose: retrying every failure would retry a quota rejection, an
+        "already exists", or a malformed YAML eight times with backoff and then
+        report the last attempt's message instead of failing immediately with
+        the first -- worse than not retrying at all.
+    #>
+    param([string]$Text)
+    return $Text -match 'Connection aborted|ConnectionResetError|10054|RemoteDisconnected|Connection broken|Max retries exceeded|Read timed out'
+}
+
+function Wait-AzRetry {
+    param([int]$Attempt)
+    $delay = [int][Math]::Min(30, [Math]::Pow(2, $Attempt))
+    Write-Host "    Could not reach Azure (attempt $Attempt/$($script:AzRetryMax)); retrying in ${delay}s." -ForegroundColor DarkYellow
+    Start-Sleep -Seconds $delay
+}
+
+function Invoke-AzCapture {
+    <#
+        Runs `az` exactly once and returns @{ ExitCode; Output; Text } without
+        ever throwing. Invoke-Az and Test-AzResource both build on it.
+
+        The stderr redirect needs $ErrorActionPreference relaxed for the length
+        of the call. PowerShell 5.1 wraps each stderr line of a native command
+        in an ErrorRecord, and under 'Stop' the first one is a *terminating*
+        error raised at the redirect itself -- so the $LASTEXITCODE check after
+        it, and the readable message it throws, were unreachable, and every az
+        failure surfaced as a raw NativeCommandError naming this file's line
+        number instead of saying what az was doing.
+
+        Simple function using $args, not an advanced one -- same reason as
+        Invoke-Az below.
+    #>
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $output = & az @args 2>&1 } finally { $ErrorActionPreference = $previous }
+    return @{
+        ExitCode = $LASTEXITCODE
+        Output   = $output
+        Text     = ($output | Out-String)
+    }
+}
+
 function Invoke-Az {
     <#
-        Runs `az` and throws on a non-zero exit code. The CLI writes progress and
-        warnings to stderr even on success, so this checks $LASTEXITCODE rather
-        than treating any stderr output as failure.
+        Runs `az`, retrying transport failures, and throws on anything Azure
+        actually answered with. The CLI writes progress and warnings to stderr
+        even on success, so this checks $LASTEXITCODE rather than treating any
+        stderr output as failure -- and returns stdout *only*, so a stray
+        warning line can never end up inside a `--query ... -o tsv` value the
+        caller is about to .Trim() and use as a resource id.
 
         Deliberately a *simple* function using $args, not an advanced one with
         [Parameter(ValueFromRemainingArguments)]. That attribute makes this an
@@ -92,18 +150,41 @@ function Invoke-Az {
         $args verbatim and az sees exactly what was written here.
     #>
     Write-Verbose "az $($args -join ' ')"
-    $output = & az @args 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "az $($args -join ' ') failed:`n$($output -join "`n")"
+    $attempt = 1
+    while ($true) {
+        $result = Invoke-AzCapture @args
+        if ($result.ExitCode -eq 0) {
+            return @($result.Output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] })
+        }
+        if (-not (Test-AzTransient $result.Text) -or $attempt -ge $script:AzRetryMax) {
+            throw "az $($args -join ' ') failed:`n$($result.Text.Trim())"
+        }
+        Wait-AzRetry -Attempt $attempt
+        $attempt++
     }
-    return $output
 }
 
 function Test-AzResource {
-    <# Existence check that distinguishes "absent" from "az is broken".
+    <# Existence check that distinguishes "absent" from "az could not reach
+       Azure" -- which the exit-code-only version this replaces claimed to do
+       but did not. A connection reset and a 404 both exit non-zero, so on a
+       flaky network this script would decide an existing environment was
+       missing and try to create it again, or -- under -Recreate -- silently
+       skip deleting an app that was really there, producing exactly the stale
+       config -Recreate exists to clear. A transport failure now retries and
+       then throws; only a real answer from Azure returns $false.
        Simple function using $args for the same reason as Invoke-Az above. #>
-    & az @args 2>$null | Out-Null
-    return ($LASTEXITCODE -eq 0)
+    $attempt = 1
+    while ($true) {
+        $result = Invoke-AzCapture @args
+        if ($result.ExitCode -eq 0) { return $true }
+        if (-not (Test-AzTransient $result.Text)) { return $false }
+        if ($attempt -ge $script:AzRetryMax) {
+            throw "az $($args -join ' ') could not reach Azure after $($script:AzRetryMax) attempts:`n$($result.Text.Trim())"
+        }
+        Wait-AzRetry -Attempt $attempt
+        $attempt++
+    }
 }
 
 function Write-Step {

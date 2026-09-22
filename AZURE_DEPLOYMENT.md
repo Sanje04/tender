@@ -360,6 +360,35 @@ beyond loopback, and the tailnet node is online.
 **Chat answers but nothing persists.** Atlas connectivity. Auto-save and history
 fetch both fail soft by design, so this degrades quietly.
 
+**The deploy script dies with `ConnectionResetError(10054)`.** That is the network
+between you and `management.azure.com`, not the script or your subscription. Both
+`deploy.ps1` and `deploy.sh` now retry a call that fails in transit — eight
+attempts with backoff — and fail fast on anything Azure actually answered with, so
+an occasional reset no longer ends the run. If every attempt resets, check whether
+it is IPv6-specific before blaming Azure:
+
+```powershell
+curl.exe -4 -s -o NUL -w "%{http_code}`n" https://management.azure.com/subscriptions?api-version=2020-01-01
+curl.exe -6 -s -o NUL -w "%{http_code}`n" https://management.azure.com/subscriptions?api-version=2020-01-01
+```
+
+`401` means reachable (unauthenticated, which is the expected answer); `000` means
+the connection failed. A clean `-4` next to a failing `-6` is a broken IPv6 path on
+your network — the Azure CLI does not fall back, because the socket connects and is
+then reset mid-TLS rather than failing to connect. Prefer IPv4 system-wide
+(`HKLM\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\DisabledComponents` =
+`0x20`, admin, needs a reboot), or -- lighter, and reversible without one --
+demote IPv6 in the address-selection policy so `getaddrinfo` offers the CLI the
+IPv4 address first:
+
+```powershell
+netsh interface ipv6 set prefixpolicy ::ffff:0:0/96 60 4   # elevated; effective at once
+netsh interface ipv6 set prefixpolicy ::ffff:0:0/96 35 4   # restore the default
+```
+
+That leaves IPv6 enabled and only stops it being *preferred*. Deploying from a
+different network also works, if that network's path is healthy.
+
 ## Known tradeoffs
 
 **The live URL is dark whenever your machine or Ollama is off.** This is the

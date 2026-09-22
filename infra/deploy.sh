@@ -55,10 +55,75 @@ BACKEND_IMAGE="ghcr.io/$GHCR_OWNER/tender-backend:$IMAGE_TAG"
 MCP_IMAGE="ghcr.io/$GHCR_OWNER/tender-mcp:$IMAGE_TAG"
 FRONTEND_IMAGE="ghcr.io/$GHCR_OWNER/tender-frontend:$IMAGE_TAG"
 
-exists() { az "$@" >/dev/null 2>&1; }
+# How many times one az call is retried when it fails in transit rather than
+# coming back with an answer. Eight rather than three because the failure this
+# exists for is a per-call coin flip on a bad network path (a broken IPv6 route
+# to management.azure.com resets roughly half of them), and a full deploy makes
+# on the order of twenty calls -- three attempts would still lose most runs.
+AZ_RETRY_MAX=8
+AZ_STDERR=""
+
+az_transient() {
+    # True when az never got an answer out of the network, as opposed to
+    # getting one it did not like. Matched on the message text rather than on a
+    # non-zero exit status on purpose: retrying every failure would retry a
+    # quota rejection, an "already exists", or a malformed YAML eight times with
+    # backoff and then report the last attempt's message instead of the first.
+    case "$1" in
+        *'Connection aborted'*|*ConnectionResetError*|*10054*|*RemoteDisconnected*|\
+        *'Connection broken'*|*'Max retries exceeded'*|*'Read timed out'*) return 0 ;;
+    esac
+    return 1
+}
+
+az() {
+    # Shadows the CLI so every call site below inherits the retry unchanged;
+    # `command az` reaches the real binary, so this does not recurse. stdout
+    # passes straight through to whatever the caller redirected it to (a reset
+    # produces none before failing, so a retry cannot duplicate output), while
+    # stderr is captured so it can be matched -- and then re-emitted, so a
+    # genuine az error still reads the same on the terminal. The last attempt's
+    # stderr is also left in AZ_STDERR for exists() to inspect.
+    local attempt=1 status err delay
+    err="$(mktemp)"
+    while :; do
+        status=0
+        command az "$@" 2>"$err" || status=$?
+        AZ_STDERR="$(cat "$err")"
+        if [ "$status" -eq 0 ] || ! az_transient "$AZ_STDERR" || [ "$attempt" -ge "$AZ_RETRY_MAX" ]; then
+            if [ -n "$AZ_STDERR" ]; then printf '%s\n' "$AZ_STDERR" >&2; fi
+            rm -f "$err"
+            return "$status"
+        fi
+        delay=$((2 ** attempt))
+        if [ "$delay" -gt 30 ]; then delay=30; fi
+        printf '    Could not reach Azure (attempt %s/%s); retrying in %ss.\n' \
+            "$attempt" "$AZ_RETRY_MAX" "$delay" >&2
+        sleep "$delay"
+        attempt=$((attempt + 1))
+    done
+}
+
+exists() {
+    # Existence check that distinguishes "absent" from "az could not reach
+    # Azure". A connection reset and a 404 both exit non-zero, so reading only
+    # the exit status has this script decide an existing environment is missing
+    # and try to create it again, or -- under RECREATE=1 -- silently skip
+    # deleting an app that is really there, leaving exactly the stale config
+    # RECREATE exists to clear.
+    local status=0
+    az "$@" >/dev/null 2>/dev/null || status=$?
+    if [ "$status" -eq 0 ]; then return 0; fi
+    if az_transient "$AZ_STDERR"; then
+        fail "az $* could not reach Azure after $AZ_RETRY_MAX attempts, so whether the resource exists is unknown; re-run once the network is stable."
+    fi
+    return 1
+}
 
 step "Checking the Azure CLI and sign-in state"
-command -v az >/dev/null 2>&1 || fail "The Azure CLI is not on PATH. See https://aka.ms/installazurecli"
+# `type -P` rather than `command -v`: the az() wrapper above is a function,
+# which command -v would happily report as "az" whether or not the CLI exists.
+[ -n "$(type -P az)" ] || fail "The Azure CLI is not on PATH. See https://aka.ms/installazurecli"
 printf '    Subscription: %s\n' "$(az account show --query name -o tsv)"
 az extension add --name containerapp --upgrade --only-show-errors >/dev/null
 
