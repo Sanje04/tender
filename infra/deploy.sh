@@ -232,7 +232,13 @@ replacements = {
     "__ALLOWED_ORIGINS__": "*",
 }
 
-with open(template_path, encoding="utf-8") as fh:
+# utf-8-sig, not utf-8: a byte-order mark read as a character is written
+# straight back out, and the PyYAML the Azure CLI bundles (6.0.3) rejects a
+# BOM when it parses a *stream*, with "expected '<document start>'" pointing
+# at the first real line -- a fixed-looking error that has nothing to do with
+# the YAML. Editors reintroduce the mark, so strip it here rather than trust
+# the template to stay clean.
+with open(template_path, encoding="utf-8-sig") as fh:
     text = fh.read()
 for token, value in replacements.items():
     text = text.replace(token, value)

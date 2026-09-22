@@ -354,7 +354,14 @@ try {
     if ($yaml -match '__[A-Z_]+__') {
         throw "backend-app.yaml.template still has unsubstituted placeholders: $($Matches[0])"
     }
-    Set-Content -LiteralPath $RenderedYaml -Value $yaml -Encoding utf8 -NoNewline
+    # WriteAllText with an explicit BOM-less encoder, not `Set-Content -Encoding
+    # utf8`: on PowerShell 5.1 that switch always writes a byte-order mark, and
+    # the PyYAML the Azure CLI bundles (6.0.3) rejects a BOM when it parses a
+    # *stream*. The failure reads as `expected '<document start>', but found
+    # '<block mapping start>'` against the first real line of the document, which
+    # looks like malformed YAML and is not -- the same bytes parse clean once the
+    # mark is gone.
+    [System.IO.File]::WriteAllText($RenderedYaml, $yaml, (New-Object System.Text.UTF8Encoding($false)))
 
     if (Test-AzResource containerapp show --name backend --resource-group $ResourceGroup) {
         Invoke-Az containerapp update --name backend --resource-group $ResourceGroup --yaml $RenderedYaml | Out-Null

@@ -1,4 +1,4 @@
-﻿# Azure Container App definition for the `backend` service (AZURE_DEPLOYMENT.md).
+# Azure Container App definition for the `backend` service (AZURE_DEPLOYMENT.md).
 #
 # This one app is defined in YAML while `mcp` and `frontend` are created from
 # plain `az containerapp create` flags, for one reason: it holds two containers
