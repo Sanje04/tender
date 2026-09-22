@@ -288,11 +288,27 @@ if ($mcpExists) {
         --resource-group $ResourceGroup `
         --image $McpImage `
         --set-env-vars "MONGODB_URI=secretref:mongodb-uri" "MONGODB_DB_NAME=$MongoDbName" "MCP_HOST=0.0.0.0" "MCP_PORT=9000" | Out-Null
+    # Ingress is converged on every run, not just at create: `containerapp
+    # update` does not touch it, so an mcp app created before --allow-insecure
+    # was passed keeps 301-ing the backend's plain-HTTP MCP calls to HTTPS and
+    # never repairs itself. The symptom is silent -- chat answers with no tools
+    # -- so a deploy that cannot self-heal this would report success forever.
+    Invoke-Az containerapp ingress update `
+        --name mcp `
+        --resource-group $ResourceGroup `
+        --allow-insecure | Out-Null
     Write-Host "    Updated to $ImageTag."
 } else {
     # MCP_HOST=0.0.0.0, not 127.0.0.1: the backend app connects from outside this
     # container, so a loopback bind would refuse every call. Ingress is internal,
     # so 0.0.0.0 is still only reachable from inside the environment.
+    #
+    # --allow-insecure matches allowInsecure: true in backend-app.yaml.template.
+    # Without it the ingress answers plain HTTP with a 301 to HTTPS, and
+    # MCP_SERVER_URL is http:// -- the streamable-HTTP client does not follow that
+    # redirect, so discovery times out. That failure is silent by design (chat
+    # answers, minus tools), which is why it is pinned rather than left to the
+    # ingress default.
     Invoke-Az containerapp create `
         --name mcp `
         --resource-group $ResourceGroup `
@@ -300,6 +316,7 @@ if ($mcpExists) {
         --image $McpImage `
         --ingress internal `
         --target-port 9000 `
+        --allow-insecure `
         --transport auto `
         --cpu 0.25 --memory 0.5Gi `
         --min-replicas 0 --max-replicas 1 `
