@@ -149,6 +149,28 @@ properties:
             value: 127.0.0.1:1055
           - name: TS_HOSTNAME
             value: "__TS_HOSTNAME__"
+          # Blanked deliberately, and only relevant on Azure. Container Apps runs
+          # on AKS underneath and injects KUBERNETES_SERVICE_HOST into every
+          # container. The image's containerboot entrypoint reads that single
+          # variable as "I am in Kubernetes", then tries to keep tailscaled state
+          # in a Kubernetes Secret and dies on service-account files that a
+          # managed container platform never mounts:
+          #   error initializing kube client: open
+          #   /var/run/secrets/kubernetes.io/serviceaccount/namespace: no such file
+          # Worth knowing how this presents: the app container stays healthy while
+          # this one crash-loops, which fails the whole revision, so /api/ answers
+          # with Azure's edge 404 and the symptom points at the backend rather than
+          # at this sidecar. TS_KUBE_SECRET is blanked as well, covering the
+          # containerboot versions that gate the kube path on it instead of on the
+          # detection alone. Still no TS_STATE_DIR -- see docker-compose.yml: the
+          # OAuth-registered node is ephemeral on purpose, and persisting state
+          # would leave a dead tailnet node behind on every scale-to-zero restart.
+          - name: KUBERNETES_SERVICE_HOST
+            value: ""
+          - name: KUBERNETES_SERVICE_PORT
+            value: ""
+          - name: TS_KUBE_SECRET
+            value: ""
     scale:
       # Zero, so an idle deployment consumes none of the monthly free grant.
       # The cost is a cold start on the first request after idle.

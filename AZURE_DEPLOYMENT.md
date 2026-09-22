@@ -389,6 +389,24 @@ netsh interface ipv6 set prefixpolicy ::ffff:0:0/96 35 4   # restore the default
 That leaves IPv6 enabled and only stops it being *preferred*. Deploying from a
 different network also works, if that network's path is healthy.
 
+**`/api/health` returns an Azure "Container App is stopped or does not exist"
+page while the `backend` app looks fine.** Check the *revision*, not the app:
+
+```powershell
+az containerapp replica list -n backend -g tender-rg `
+    --query "[].properties.containers[].{name:name,ready:ready,restarts:restartCount}" -o json
+```
+
+A crash-looping `tailscale` sidecar fails the whole revision even though the
+`backend` container is ready, and Azure's edge then has no healthy replica to
+route to -- so a dead sidecar presents as a missing backend. If the sidecar logs
+(`--container tailscale`) show `error initializing kube client`, that is Container
+Apps injecting `KUBERNETES_SERVICE_HOST`, which the image's containerboot reads as
+"I am in Kubernetes" before dying on service-account files that are never mounted
+here. `backend-app.yaml.template` blanks that variable, `KUBERNETES_SERVICE_PORT`
+and `TS_KUBE_SECRET` to prevent it. The failure cannot reproduce under
+`docker-compose`, which injects no such variable.
+
 ## Known tradeoffs
 
 **The live URL is dark whenever your machine or Ollama is off.** This is the
