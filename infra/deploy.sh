@@ -169,6 +169,17 @@ fi
 
 step "Container app 1/3: mcp"
 if exists containerapp show --name mcp --resource-group "$RESOURCE_GROUP"; then
+    # Secret VALUES are converged on every run, not just at create:
+    # --set-env-vars below only points MONGODB_URI at the `mongodb-uri` secret
+    # by name, it never pushes a new value into it. Without this, rotating the
+    # Atlas password in deploy.env silently does nothing on an mcp app that
+    # already exists -- the secret keeps whatever value it had when this app
+    # was first created, forever. MCP tool calls then keep authenticating with
+    # the old password, and per CLAUDE.md an MCP failure fails soft (chat
+    # answers, minus tools), so a deploy that cannot self-heal this reports
+    # success while quietly not working.
+    az containerapp secret set --name mcp --resource-group "$RESOURCE_GROUP" \
+        --secrets "mongodb-uri=$MONGODB_URI" >/dev/null
     az containerapp update --name mcp --resource-group "$RESOURCE_GROUP" \
         --image "$MCP_IMAGE" \
         --set-env-vars "MONGODB_URI=secretref:mongodb-uri" "MONGODB_DB_NAME=$MONGODB_DB_NAME" \
