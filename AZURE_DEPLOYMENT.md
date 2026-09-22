@@ -407,6 +407,43 @@ here. `backend-app.yaml.template` blanks that variable, `KUBERNETES_SERVICE_PORT
 and `TS_KUBE_SECRET` to prevent it. The failure cannot reproduce under
 `docker-compose`, which injects no such variable.
 
+**The backend logs `SSL handshake failed ... TLSV1_ALERT_INTERNAL_ERROR` against
+every Atlas shard.** Not a certificate or TLS-version problem, despite the wording.
+Atlas' shared (M0) tier answers a connection from an address that is not on the
+cluster's Network Access list by failing the TLS handshake with an internal-error
+alert rather than refusing the connection, so it reads like a crypto fault. Confirm
+by handshaking to one shard from a machine that *is* allowlisted -- if that succeeds
+while the container fails, it is the access list:
+
+```powershell
+python -c "import socket,ssl;h='<shard>.mongodb.net';s=socket.create_connection((h,27017),timeout=20);print(ssl.create_default_context().wrap_socket(s,server_hostname=h).version())"
+```
+
+Then fix the access list -- but **not** with a single IP. A Container Apps
+environment with no custom VNet has no stable outbound address: it egresses from a
+large shared Azure SNAT pool, and the list is neither short nor fixed.
+
+```powershell
+az containerapp show -n backend -g tender-rg --query "length(properties.outboundIpAddresses)"
+az containerapp show -n backend -g tender-rg --query properties.outboundIpAddresses -o tsv
+```
+
+That returned **160+ addresses** here. Note the environment's `staticIp` is the
+*inbound* address and is **not** in that list -- allowlisting it does nothing, which
+is an easy hour to lose. Three real options:
+
+- **Allow `0.0.0.0/0`** in Atlas → Network Access. The database user password
+  becomes the only access control, so use a strong generated one. Reasonable for a
+  demo or portfolio deployment; Atlas will warn you.
+- **Paste the whole outbound list** in. It works today and silently breaks when
+  Azure changes the pool, so it trades one outage now for a mysterious one later.
+- **Give the environment a VNet with a NAT gateway**, which yields one stable
+  egress IP to allowlist. The correct answer for anything real, and the only one
+  that needs the environment recreated (`--infrastructure-subnet-resource-id`).
+
+Mongo failures fail soft by design, so the only visible symptoms are an empty
+dashboard and chat that answers but never persists -- `/api/health` still returns 200.
+
 ## Known tradeoffs
 
 **The live URL is dark whenever your machine or Ollama is off.** This is the
