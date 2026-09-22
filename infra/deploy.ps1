@@ -423,9 +423,15 @@ $PublicUrl = "https://$FrontendFqdn"
 # ---------------------------------------------------------------------------
 
 Write-Step "Narrowing the backend's CORS origins to $PublicUrl"
+# --container-name is mandatory here and nowhere else in this script: 'backend'
+# is the only app with two containers, and without it the CLI refuses the update
+# rather than guess which of them the variable belongs to. The value is the
+# *container* name from backend-app.yaml.template, which happens to match the app
+# name -- changing one without the other breaks this step.
 Invoke-Az containerapp update `
     --name backend `
     --resource-group $ResourceGroup `
+    --container-name backend `
     --set-env-vars "ALLOWED_ORIGINS=$PublicUrl" | Out-Null
 Write-Host "    Done. (Browser traffic is same-origin through nginx anyway; this"
 Write-Host "     closes the wildcard left open while the hostname was unknown.)"

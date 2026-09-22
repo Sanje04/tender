@@ -289,7 +289,13 @@ FRONTEND_FQDN="$(az containerapp show --name frontend --resource-group "$RESOURC
 PUBLIC_URL="https://$FRONTEND_FQDN"
 
 step "Narrowing the backend's CORS origins to $PUBLIC_URL"
+# --container-name is mandatory here and nowhere else in this script: 'backend'
+# is the only app with two containers, and without it the CLI refuses the update
+# rather than guess which of them the variable belongs to. The value is the
+# *container* name from backend-app.yaml.template, which happens to match the app
+# name -- changing one without the other breaks this step.
 az containerapp update --name backend --resource-group "$RESOURCE_GROUP" \
+    --container-name backend \
     --set-env-vars "ALLOWED_ORIGINS=$PUBLIC_URL" >/dev/null
 echo "    Done."
 
